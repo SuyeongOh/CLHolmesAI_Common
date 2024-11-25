@@ -1,0 +1,7 @@
+numpy
+wfdb
+scikit-learn
+scipy
+gc-python-utils
+tensorflow[and-cuda]==2.16.1
+neurokit2
