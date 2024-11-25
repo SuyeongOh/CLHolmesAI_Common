@@ -44,6 +44,9 @@ class MIT_BIH_ARRHYTMIA:
         elif type == 'afib':
             path = 'data/mit-bih-atrial-fibrillation-database-1.0.0/files/'
             record_file = 'RECORDS'
+
+        if not os.path.exists(path):
+            return
         save_path = f'data/parsing/{type}/'
         # valid_lead = ['MLII', 'II', 'I', 'MLI', 'V5']
         valid_lead = ['MLII']
