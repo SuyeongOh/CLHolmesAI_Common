@@ -250,15 +250,6 @@ class BeatAnalysis:
         return ECG_dict, total_num_beats_dict
 
 
-    def main(self, ECG_dict):
-        print("4. Beat analysis")
-        ECG_dict, total_num_beats_dict = self.beatClassifier(ECG_dict)
-
-        # with open('results/total_num_beats_dict.pickle', 'wb') as f:
-        #     pickle.dump(total_num_beats_dict, f)
-
-        return ECG_dict, total_num_beats_dict
-
 class BeatClassifierArchitecture:
     def __init__(self, nb_filters=32, use_residual=True, use_bottleneck=True, depth=10, kernel_size=41):
         self.nb_filters = nb_filters

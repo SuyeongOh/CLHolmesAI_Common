@@ -1,11 +1,10 @@
 import neurokit2 as nk
 import numpy as np
-from scipy.signal import resample, find_peaks
+from scipy.signal import resample
 
+from config import FS, DURATION, BATCH_SIZE, SEC_TO_MS
 from ecg.ecg_delineate import ECGSegmentationArchitecture
 from utils import ecg_utils
-from config import FS, ORDER, FILTERS_WIDTH, HIGHCUT2, DURATION, BATCH_SIZE, SEC_TO_MS
-
 
 #TEST_MODE : DNN / NK
 TEST_MODE = 'DNN'

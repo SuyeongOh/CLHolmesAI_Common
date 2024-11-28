@@ -51,8 +51,8 @@ if __name__ == "__main__":
 
     start_time = time.time()
     #Test 진행 코드
-    cert_test_beat_class.run(np_data=np_data)
-    cert_test_segmentation.run(np_data=np_data, gt_data=json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
+    test_beat_analysis.run(np_data=np_data)
+    test_delineate.run(np_data=np_data, gt_data=json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
