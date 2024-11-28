@@ -103,13 +103,16 @@ class MIT_BIH_ARRHYTMIA:
                         start_afib_idx = i
                         continue
                     if start_afib_flag:
-                        start_afib_flag = False
-                        afib_info = {}
-                        afib_info['start_idx'] = start_afib_idx
-                        afib_info['start_sample'] = all_frame_annotation[record_name][start_afib_idx]
-                        afib_info['end_idx'] = i
-                        afib_info['end_sample'] = all_frame_annotation[record_name][i]
-                        record_afib_info.append(afib_info)
+                        try:
+                            start_afib_flag = False
+                            afib_info = {}
+                            afib_info['start_idx'] = start_afib_idx
+                            afib_info['start_sample'] = all_frame_annotation[record_name][start_afib_idx]
+                            afib_info['end_idx'] = i
+                            afib_info['end_sample'] = all_frame_annotation[record_name][i]
+                            record_afib_info.append(afib_info)
+                        except Exception as e:
+                            continue
 
                 if start_afib_flag:
                     afib_info = {}
