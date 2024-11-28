@@ -5,10 +5,10 @@ import time
 import numpy as np
 import wfdb
 
-from test import test_delineate, test_beat_analysis
+from test import test_delineate, test_beat_analysis, test_atrial
 
-ROOT_DATA_PATH = 'dataset/data'
-BASE_DATA_PATH = 'dataset/data/parsing'
+ROOT_DATA_PATH = 'data/data'
+BASE_DATA_PATH = 'data/data/parsing'
 DATA_LABEL_ARRHYTHMIA = 'arrhythmia'
 DATA_LABEL_STRESS = 'stress'
 
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     #Test 진행 코드
     test_beat_analysis.run(np_data=np_data)
     test_delineate.run(np_data=np_data, gt_data=json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
-
+    test_atrial.run(np_data=np_data, gt_data=json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"소요 시간: {elapsed_time:.6f}초")

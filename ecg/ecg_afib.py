@@ -1,9 +1,15 @@
+import keras
 from tensorflow import reshape, concat
 from tensorflow.keras.backend import clear_session
-from tensorflow.keras.layers import Input, Conv1D, GlobalAveragePooling1D, Dense, Activation, MaxPool1D
+from tensorflow.keras.layers import Input, Conv1D, GlobalAveragePooling1D, Dense, Activation, MaxPool1D, Layer
 from tensorflow.keras.models import Model
+import tensorflow as tf
 
 import config
+
+class Concat(Layer):
+    def call(self, x):
+        return tf.concat(x, axis=-1)
 
 class DDNN:
     def __init__(self):
@@ -38,8 +44,9 @@ class DDNN:
         x24 = Conv1D(filters=1, kernel_size=self.kernel_size_3, padding="same")(input)
 
         # 5000, 36
-        x = concat([x8, x16], axis=-1)
-        x = concat([x, x24], axis=-1)
+        concat_layer = Concat()
+        x = concat_layer([x8, x16])
+        x = concat_layer([x, x24])
 
         # 1
         x = self.seBlock(x)

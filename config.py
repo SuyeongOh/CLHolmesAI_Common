@@ -126,3 +126,4 @@ ARRHYTHMIA_REASON_DICT = {"sinus_rhythm": " ",
 ABNORMAL_QTc = {0: 0.43, 1: 0.45} # 0: 남자, 1: 여자 . 단위: sec (s)
 
 
+AF_THRESHOLD = 0.5454725

@@ -27,3 +27,16 @@ def run(np_data: dict, gt_data: dict, raw_signal: dict, raw_fs: dict):
             signal_10s_last = np.pad(signal_10s_last, ((0, 2500 - len(signal_10s_last)), (0, 0)), mode='constant',
                                      constant_values=0).flatten()
             signal_split_10s.append(signal_10s_last)
+
+        ecg_pid_array = np.concatenate([arr[np.newaxis, :, np.newaxis] for arr in signal_split_10s], axis=0)
+
+        confidence_AFL = model.predict(ecg_pid_array, batch_size=config.BATCH_SIZE)
+
+        tmp_probability_AFL = confidence_AFL.copy()
+        scaled_probability_AFL = np.where(confidence_AFL <= config.AF_THRESHOLD, 0.5 * confidence_AFL / config.AF_THRESHOLD,
+                                          0.5 + 0.5 * (confidence_AFL - config.AF_THRESHOLD) / (1 - config.AF_THRESHOLD))
+
+        tmp_probability_AFL[scaled_probability_AFL < 0.5] = 0  # AFIB
+        tmp_probability_AFL[scaled_probability_AFL >= 0.5] = 1  # AFL
+
+
