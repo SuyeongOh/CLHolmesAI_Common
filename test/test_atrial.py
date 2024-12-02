@@ -5,7 +5,7 @@ from scipy.signal import resample
 import numpy as np
 
 
-def run(np_data: dict, gt_data: dict, raw_signal: dict, raw_fs: dict):
+def run(np_data: dict, gt_data: dict, afib_data: dict, raw_signal: dict, raw_fs: dict):
     model = DDNN().ddnn()
 
     pid_list = np.unique(np_data['pid'])
@@ -39,4 +39,4 @@ def run(np_data: dict, gt_data: dict, raw_signal: dict, raw_fs: dict):
         tmp_probability_AFL[scaled_probability_AFL < 0.5] = 0  # AFIB
         tmp_probability_AFL[scaled_probability_AFL >= 0.5] = 1  # AFL
 
-
+        #해당 10초구간이 AFIB인지 판별

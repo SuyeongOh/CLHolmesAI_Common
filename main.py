@@ -17,7 +17,7 @@ TAG_LEAD2 = 'MLII'
 # slice 1s waveform for
 if __name__ == "__main__":
     # load dataset
-    TARGET_DATA = DATA_LABEL_STRESS
+    TARGET_DATA = DATA_LABEL_ARRHYTHMIA
     arrhythmia_path = f'{BASE_DATA_PATH}/{TARGET_DATA}/'
     arrhythmia_data = os.listdir(arrhythmia_path)
     np_data = {}
@@ -28,8 +28,12 @@ if __name__ == "__main__":
             file_type = data.split('.')[0].split('_')[-1]
             np_data[file_type] = np.load(arrhythmia_path + data)
         if 'annotation.json' in data:
-            with open(arrhythmia_path + data) as file_data:
-                json_data = json.load(file_data)
+            if 'frame' in data:
+                with open(arrhythmia_path + data) as frame_file_data:
+                    frame_json_data = json.load(frame_file_data)
+            if 'afib' in data:
+                with open(arrhythmia_path + data) as afib_file_data:
+                    afib_json_data = json.load(afib_file_data)
     resample_signal = []
     result_class = []
 
@@ -52,8 +56,8 @@ if __name__ == "__main__":
     start_time = time.time()
     #Test 진행 코드
     test_beat_analysis.run(np_data=np_data)
-    test_delineate.run(np_data=np_data, gt_data=json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
-    test_atrial.run(np_data=np_data, gt_data=json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
+    test_delineate.run(np_data=np_data, gt_data=frame_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
+    test_atrial.run(np_data=np_data, gt_data=frame_json_data, afib_data= afib_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"소요 시간: {elapsed_time:.6f}초")
