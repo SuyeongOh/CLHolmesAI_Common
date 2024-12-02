@@ -1,14 +1,14 @@
+import gc
 from datetime import time
+
 import numpy as np
-
-from tensorflow.keras.layers import (Conv1D, MaxPool1D, Concatenate, BatchNormalization, Activation, Input, Add,
-                                     GlobalAveragePooling1D, Dense)
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.models import Model
 from tensorflow.keras.backend import clear_session
-from sklearn.cluster import KMeans
+from tensorflow.keras.layers import (Conv1D, MaxPooling1D, concatenate, BatchNormalization, Activation, Input,
+                                     ZeroPadding1D, SpatialDropout1D, Conv1DTranspose, Cropping1D)
+from tensorflow.keras.models import Model
 
-from config import FS, DURATION, BATCH_SIZE
+from config import FS, DURATION, BATCH_SIZE, LEAD, NUM_COMPONENTS_CLASSES, AI_CPU_CORE
+
 
 class ECGSegmentation:
     def __init__(self):
