@@ -55,8 +55,6 @@ if __name__ == "__main__":
 
     start_time = time.time()
     #Test 진행 코드
-    test_beat_analysis.run(np_data=np_data)
-    test_delineate.run(np_data=np_data, gt_data=frame_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
     test_atrial.run(gt_data=frame_json_data, afib_data= afib_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
     end_time = time.time()
     elapsed_time = end_time - start_time
