@@ -17,7 +17,9 @@ label_group_map = {'N':'N', 'L':'N', 'R':'N', 'e':'N', 'j':'N', '.':'N',
 #NST와 mit-bih는 같은 형식으로 같은 parser 사용 가능
 
 
-AFIB_LABEL = '(AFIB\x00'
+AFIB_LABEL = '(AFIB'
+AFL_LABEL = '(AFL'
+AFL_Dataset = ['202', '203', '222']
 AFIB_Dataset = ['201', '202', '203', '210', '219', '221', '222']
 class MIT_BIH_ARRHYTMIA:
     def resample_unequal(self, ts, fs_in, fs_out):
@@ -65,6 +67,7 @@ class MIT_BIH_ARRHYTMIA:
         all_group = []
         all_frame_annotation = {}
         all_afib_data = {}
+        all_afl_data = {}
         with open(os.path.join(path, record_file), 'r') as fin:
             all_record_name = fin.read().strip().split('\n')
         # test_pid = random.choices(all_record_name, k=int(len(all_record_name) * test_ratio))
@@ -98,7 +101,7 @@ class MIT_BIH_ARRHYTMIA:
                 start_afib_idx = 0
                 record_afib_info = []
                 for i, label in rhythm_label_pid:
-                    if label == AFIB_LABEL:
+                    if AFIB_LABEL in label :
                         start_afib_flag = True
                         start_afib_idx = i
                         continue
@@ -121,8 +124,39 @@ class MIT_BIH_ARRHYTMIA:
                     afib_info['end_idx'] = -1
                     afib_info['end_sample'] = 650000
                     record_afib_info.append(afib_info)
-
                 all_afib_data[record_name] = record_afib_info
+
+            if record_name in AFL_Dataset:
+                rhythm_label_pid = [(i, s) for i, s in enumerate(tmp_ann_res['aux_note']) if s.strip()]
+                all_afl_data[record_name] = {}
+                start_afl_flag = False
+                start_afl_idx = 0
+                record_afl_info = []
+                for i, label in rhythm_label_pid:
+                    if AFL_LABEL in label :
+                        start_afl_flag = True
+                        start_afl_idx = i
+                    if start_afl_flag:
+                        try:
+                            afl_info = {}
+                            afl_info['start_idx'] = start_afl_idx
+                            afl_info['start_sample'] = all_frame_annotation[record_name][start_afl_idx]
+                            afl_info['end_idx'] = i
+                            afl_info['end_sample'] = all_frame_annotation[record_name][i]
+                            record_afl_info.append(afl_info)
+                            start_afl_flag = False
+                        except Exception as e:
+                            continue
+
+                if start_afl_flag:
+                    afl_info = {}
+                    afl_info['start_idx'] = start_afl_idx
+                    afl_info['start_sample'] = all_frame_annotation[record_name][start_afl_idx]
+                    afl_info['end_idx'] = -1
+                    afl_info['end_sample'] = 650000
+                    record_afl_info.append(afl_info)
+                all_afl_data[record_name] = record_afl_info
+
             ## total 1 second for each
             left_offset = int(1.0 * fs / 2)
             right_offset = int(fs) - int(1.0 * fs / 2)
@@ -209,6 +243,9 @@ class MIT_BIH_ARRHYTMIA:
 
         with open(os.path.join(save_path, f'mitdb_{type}_afib_annotation.json'), 'w') as afib_annot_file:
             json.dump(all_afib_data, afib_annot_file)
+
+        with open(os.path.join(save_path, f'mitdb_{type}_afl_annotation.json'), 'w') as afl_annot_file:
+            json.dump(all_afl_data, afl_annot_file)
 
         with open(os.path.join(save_path, f'mitdb_{type}_frame_annotation.json'), 'w') as anoot_file:
             json.dump(all_frame_annotation, anoot_file)
