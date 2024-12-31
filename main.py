@@ -31,9 +31,12 @@ if __name__ == "__main__":
             if 'frame' in data:
                 with open(arrhythmia_path + data) as frame_file_data:
                     frame_json_data = json.load(frame_file_data)
-            if 'afib' in data:
+            elif 'afib' in data:
                 with open(arrhythmia_path + data) as afib_file_data:
                     afib_json_data = json.load(afib_file_data)
+            elif 'afl' in data:
+                with open(arrhythmia_path + data) as afl_file_data:
+                    afl_json_data = json.load(afl_file_data)
     resample_signal = []
     result_class = []
 
@@ -55,7 +58,8 @@ if __name__ == "__main__":
 
     start_time = time.time()
     #Test 진행 코드
-    test_atrial.run(gt_data=frame_json_data, afib_data= afib_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
+    test_atrial.run_afib(afib_data= afib_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
+    test_atrial.run_afl(afl_data=afl_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"소요 시간: {elapsed_time:.6f}초")
