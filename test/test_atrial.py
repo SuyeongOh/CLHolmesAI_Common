@@ -116,11 +116,11 @@ def run_afl(afl_data: dict, raw_signal: dict, raw_fs: dict):
         afl_signal_10s = np.zeros(len(tmp_probability_AFL))
         for i in range(len(afl_signal)//(FS * DURATION) + 1):
             if not i == (len(afl_signal)//(FS * DURATION) - 1):
-                isAfib = np.isin(1, afl_signal[i*FS*DURATION:(i+1)*FS*DURATION])
+                isAfl = np.isin(1, afl_signal[i*FS*DURATION:(i+1)*FS*DURATION])
             else:
-                isAfib = np.isin(1, afl_signal[i*FS*DURATION:-1])
+                isAfl = np.isin(1, afl_signal[i*FS*DURATION:-1])
 
-            if isAfib:
+            if isAfl:
                 afl_signal_10s[i] = 1
             else:
                 afl_signal_10s[i] = 0
