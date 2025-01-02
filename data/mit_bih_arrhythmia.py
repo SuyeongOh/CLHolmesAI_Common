@@ -136,6 +136,7 @@ class MIT_BIH_ARRHYTMIA:
                     if AFL_LABEL in label :
                         start_afl_flag = True
                         start_afl_idx = i
+                        continue
                     if start_afl_flag:
                         try:
                             afl_info = {}
