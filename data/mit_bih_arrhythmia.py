@@ -5,20 +5,23 @@ import numpy as np
 import pandas as pd
 import wfdb
 from scipy.interpolate import interp1d
+from tensorflow.python.keras.engine.functional import reconstruct_from_config
 
-#p파 라벨은 p
+from utils import data_utils
+
+#p파 라벨은 p, rhythm symbol은 +
 label_group_map = {'N':'N', 'L':'N', 'R':'N', 'e':'N', 'j':'N', '.':'N',
                    'S':'S', 'A':'S', 'J':'S',  'a':'S',
                    'V': 'V', 'E': 'V',
                    'F':'F',
                    '/':'Q', 'f':'Q', 'Q':'Q',
-                   'p':'p'}
+                   'p':'p',
+                   '+':'+'}
 
 
 AFIB_LABEL = '(AFIB'
 AFL_LABEL = '(AFL'
-AFL_Dataset = ['202', '203', '222']
-AFIB_Dataset = ['201', '202', '203', '210', '219', '221', '222']
+
 class MIT_BIH_ARRHYTMIA:
     def resample_unequal(self, ts, fs_in, fs_out):
         """
@@ -84,72 +87,15 @@ class MIT_BIH_ARRHYTMIA:
             except Exception as e:
                 print(f'file :: {record_name}, message :: {e}')
 
-            if 'p-wave' in dataset_name:
+            if 'atrial' in dataset_name:
                 print()
 
-            if record_name in AFIB_Dataset:
-                rhythm_label_pid = [(i, s) for i, s in enumerate(tmp_ann_res['aux_note']) if s.strip()]
-                all_afib_data[record_name] = {}
-                start_afib_flag = False
-                start_afib_idx = 0
-                record_afib_info = []
-                for i, label in rhythm_label_pid:
-                    if AFIB_LABEL in label :
-                        start_afib_flag = True
-                        start_afib_idx = i
-                        continue
-                    if start_afib_flag:
-                        try:
-                            afib_info = {}
-                            afib_info['start_idx'] = start_afib_idx
-                            afib_info['start_sample'] = all_frame_annotation[record_name][start_afib_idx]
-                            afib_info['end_idx'] = i
-                            afib_info['end_sample'] = all_frame_annotation[record_name][i]
-                            record_afib_info.append(afib_info)
-                            start_afib_flag = False
-                        except Exception as e:
-                            continue
+            rhythm_label_pid = [(i, s) for i, s in enumerate(tmp_ann_res['aux_note']) if s.strip()]
 
-                if start_afib_flag:
-                    afib_info = {}
-                    afib_info['start_idx'] = start_afib_idx
-                    afib_info['start_sample'] = all_frame_annotation[record_name][start_afib_idx]
-                    afib_info['end_idx'] = -1
-                    afib_info['end_sample'] = 650000
-                    record_afib_info.append(afib_info)
-                all_afib_data[record_name] = record_afib_info
-
-            if record_name in AFL_Dataset:
-                rhythm_label_pid = [(i, s) for i, s in enumerate(tmp_ann_res['aux_note']) if s.strip()]
-                all_afl_data[record_name] = {}
-                start_afl_flag = False
-                start_afl_idx = 0
-                record_afl_info = []
-                for i, label in rhythm_label_pid:
-                    if AFL_LABEL in label :
-                        start_afl_flag = True
-                        start_afl_idx = i
-                        continue
-                    if start_afl_flag:
-                        try:
-                            afl_info = {}
-                            afl_info['start_idx'] = start_afl_idx
-                            afl_info['start_sample'] = all_frame_annotation[record_name][start_afl_idx]
-                            afl_info['end_idx'] = i
-                            afl_info['end_sample'] = all_frame_annotation[record_name][i]
-                            record_afl_info.append(afl_info)
-                            start_afl_flag = False
-                        except Exception as e:
-                            continue
-
-                if start_afl_flag:
-                    afl_info = {}
-                    afl_info['start_idx'] = start_afl_idx
-                    afl_info['start_sample'] = all_frame_annotation[record_name][start_afl_idx]
-                    afl_info['end_idx'] = -1
-                    afl_info['end_sample'] = 650000
-                    record_afl_info.append(afl_info)
-                all_afl_data[record_name] = record_afl_info
+            all_afib_data[record_name] = data_utils.rhythmLabelEpisodeFinder(
+                AFIB_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation)
+            all_afl_data[record_name] = data_utils.rhythmLabelEpisodeFinder(
+                AFL_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation)
 
             ## total 1 second for each
             left_offset = int(1.0 * fs / 2)
@@ -207,7 +153,7 @@ class MIT_BIH_ARRHYTMIA:
         all_label = np.array(all_label)
         all_group = np.array(all_group)
 
-        if 'p-wave' in dataset_name:
+        if 'atrial' in dataset_name:
             print()
         if not os.path.exists(save_path):
             os.makedirs(save_path)
