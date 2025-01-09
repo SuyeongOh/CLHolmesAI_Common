@@ -1,11 +1,9 @@
 import json
 import os
-from collections import Counter
 
 import numpy as np
-import wfdb
 import pandas as pd
-
+import wfdb
 from scipy.interpolate import interp1d
 
 label_group_map = {'N':'N', 'L':'N', 'R':'N', 'e':'N', 'j':'N', '.':'N',
@@ -42,10 +40,11 @@ class MIT_BIH_ARRHYTMIA:
 
         if not os.path.exists(path):
             return
-        dataset_name = path.split('/')[0]
+        dataset_name = path.split('/')[1]
         save_path = f'parsed_data/{dataset_name}/'
         # valid_lead = ['MLII', 'II', 'I', 'MLI', 'V5']
-        valid_lead = ['MLII']
+        #p-wave에선 ECG1 = MLII, ECG2 = V1
+        valid_lead = ['MLII', 'ECG1']
         fs_out = 250
 
         all_pid = []
@@ -58,11 +57,17 @@ class MIT_BIH_ARRHYTMIA:
         with open(os.path.join(path, record_file), 'r') as fin:
             all_record_name = fin.read().strip().split('\n')
 
+        annot_footer = 'pwave'
+        for file in os.listdir(path) :
+            if file.endswith('.atr'):
+                annot_footer = 'atr'
+                break
+
         for record_name in all_record_name:
             try:
-                tmp_ann_res = wfdb.rdann(path + '/' + record_name, 'atr').__dict__
-                if not tmp_ann_res:
-                    tmp_ann_res = wfdb.rdann(path + '/' + record_name, 'pwave')
+                if 'p-wave' in dataset_name:
+                    print()
+                tmp_ann_res = wfdb.rdann(path + '/' + record_name, annot_footer).__dict__
                 tmp_data_res = wfdb.rdsamp(path + '/' + record_name)
             except:
                 print('read data failed')
@@ -199,9 +204,7 @@ class MIT_BIH_ARRHYTMIA:
         all_data = np.array(all_data)
         all_label = np.array(all_label)
         all_group = np.array(all_group)
-        print(all_data.shape)
-        print(Counter(all_label))
-        print(Counter(all_group))
+
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         np.save(os.path.join(save_path, f'data.npy'), all_data)

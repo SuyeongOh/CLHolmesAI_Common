@@ -13,10 +13,10 @@ class DataParser:
 
         for path in mit_bih_dataset_list:
             if 'arrhythmia' in path:
-                if 'p-wave' in path:
-                    record_file = 'RECORDS'
-                else:
+                if 'RECORDS_NOPACE' in os.listdir(f'{DATASET_ROOT_PATH}/{path}'):
                     record_file = 'RECORDS_NOPACE'
+                else:
+                    record_file = 'RECORDS'
             else:
                 record_file = 'RECORDS'
             self.mit_parser.run(path=f'{DATASET_ROOT_PATH}/{path}', record_file=record_file)
