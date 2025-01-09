@@ -6,11 +6,13 @@ import pandas as pd
 import wfdb
 from scipy.interpolate import interp1d
 
+#p파 라벨은 p
 label_group_map = {'N':'N', 'L':'N', 'R':'N', 'e':'N', 'j':'N', '.':'N',
                    'S':'S', 'A':'S', 'J':'S',  'a':'S',
                    'V': 'V', 'E': 'V',
                    'F':'F',
-                   '/':'Q', 'f':'Q', 'Q':'Q'}
+                   '/':'Q', 'f':'Q', 'Q':'Q',
+                   'p':'p'}
 
 
 AFIB_LABEL = '(AFIB'
@@ -65,8 +67,6 @@ class MIT_BIH_ARRHYTMIA:
 
         for record_name in all_record_name:
             try:
-                if 'p-wave' in dataset_name:
-                    print()
                 tmp_ann_res = wfdb.rdann(path + '/' + record_name, annot_footer).__dict__
                 tmp_data_res = wfdb.rdsamp(path + '/' + record_name)
             except:
@@ -77,13 +77,15 @@ class MIT_BIH_ARRHYTMIA:
             #QRS Complex Parsing
             try:
                 annot_series = pd.Series(tmp_ann_res['symbol'], index=tmp_ann_res['sample'], name="annotations")
-                qrs_annotations = annot_series.iloc[:].loc[annot_series.isin(label_group_map.keys())]
-                frames_annotations_list = qrs_annotations.index.tolist()
+                annotations = annot_series.iloc[:].loc[annot_series.isin(label_group_map.keys())]
+                frames_annotations_list = annotations.index.tolist()
                 all_frame_annotation[record_name] = frames_annotations_list
                 all_frame_annotation[f'{record_name}_FS'] = fs
             except Exception as e:
                 print(f'file :: {record_name}, message :: {e}')
 
+            if 'p-wave' in dataset_name:
+                print()
 
             if record_name in AFIB_Dataset:
                 rhythm_label_pid = [(i, s) for i, s in enumerate(tmp_ann_res['aux_note']) if s.strip()]
@@ -205,6 +207,8 @@ class MIT_BIH_ARRHYTMIA:
         all_label = np.array(all_label)
         all_group = np.array(all_group)
 
+        if 'p-wave' in dataset_name:
+            print()
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         np.save(os.path.join(save_path, f'data.npy'), all_data)
