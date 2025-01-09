@@ -1,11 +1,16 @@
+import argparse
 import json
 import os
+import sys
 import time
 
 import numpy as np
 import wfdb
+from sympy.codegen.ast import continue_
 
 from test import test_delineate, test_beat_analysis, test_atrial
+from test.dataloader.mit_arrhythmia_loader import MitArrhythmiaLoader
+from test.test_atrial import TestAtrial
 
 ROOT_DATA_PATH = 'data/data'
 BASE_DATA_PATH = 'data/data/parsing'
@@ -16,52 +21,34 @@ TAG_LEAD2 = 'MLII'
 
 # slice 1s waveform for
 if __name__ == "__main__":
-    # load dataset
-    TARGET_DATA = DATA_LABEL_ARRHYTHMIA
-    arrhythmia_path = f'{BASE_DATA_PATH}/{TARGET_DATA}/'
-    arrhythmia_data = os.listdir(arrhythmia_path)
-    np_data = {}
-    json_data = {}
+    MitArrhythmiaLoader().load()
 
-    for data in arrhythmia_data:
-        if '.npy' in data:
-            file_type = data.split('.')[0].split('_')[-1]
-            np_data[file_type] = np.load(arrhythmia_path + data)
-        if 'annotation.json' in data:
-            if 'frame' in data:
-                with open(arrhythmia_path + data) as frame_file_data:
-                    frame_json_data = json.load(frame_file_data)
-            elif 'afib' in data:
-                with open(arrhythmia_path + data) as afib_file_data:
-                    afib_json_data = json.load(afib_file_data)
-            elif 'afl' in data:
-                with open(arrhythmia_path + data) as afl_file_data:
-                    afl_json_data = json.load(afl_file_data)
-    resample_signal = []
-    result_class = []
+    parser = argparse.ArgumentParser(description="Test Type Parser")
 
-    raw_ecg_path = f'{BASE_DATA_PATH}/{TARGET_DATA}/{TARGET_DATA}_raw_ecg.json'
+    parser.add_argument("--m", type=str, required=False, help="Input Test Module(delineate/atrial/classify")
 
-    pid_list = np.unique(np_data['pid'])
-    if TARGET_DATA == DATA_LABEL_ARRHYTHMIA:
-        raw_dataset_path = f'{ROOT_DATA_PATH}/mit-bih-arrhythmia-database-1.0.0'
-    if TARGET_DATA == DATA_LABEL_STRESS:
-        raw_dataset_path = f'{ROOT_DATA_PATH}/mit-bih-noise-stress-test-database-1.0.0'
-
-    raw_record = {}
-    raw_record_fs = {}
-    for record_id in pid_list:
-        record = wfdb.rdrecord(f'{raw_dataset_path}/{record_id}')
-        if TAG_LEAD2 in record.sig_name:
-            raw_record_fs[record_id] = record.fs
-            raw_record[record_id] = record.p_signal[:, record.sig_name.index(TAG_LEAD2)].tolist()
+    args = parser.parse_args()
 
     start_time = time.time()
-    #Test 진행 코드
-    test_beat_analysis.run(np_data=np_data)
-    test_delineate.run(np_data=np_data, gt_data=frame_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
-    test_atrial.run_afib(afib_data= afib_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
-    test_atrial.run_afl(afl_data=afl_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
+
+    if args.m:
+        if args.m == 'delineate':
+            NotImplemented
+            #test_delineate.run(np_data=np_data, gt_data=frame_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
+        elif args.m == 'atrial':
+            NotImplemented
+            #test_beat_analysis.run(np_data=np_data)
+
+        elif args.m == 'classify':
+            TestAtrial().run()
+        else:
+            print("The Type(--m) is not Exist")
+            sys.exit(1)
+    else:
+        #test_delineate.run(np_data=np_data, gt_data=frame_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
+        #test_beat_analysis.run(np_data=np_data)
+        TestAtrial().run()
+
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"소요 시간: {elapsed_time:.6f}초")
