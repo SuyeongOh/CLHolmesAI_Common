@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import wfdb
 from scipy.interpolate import interp1d
-from tensorflow.python.keras.engine.functional import reconstruct_from_config
 
 from utils import data_utils
 

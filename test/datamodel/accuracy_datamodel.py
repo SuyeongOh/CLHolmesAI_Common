@@ -2,10 +2,10 @@ from dataclasses import dataclass
 
 
 @dataclass
-class AccuracyDataModel():
-    t_count: int
-    p_count: int
-    tp_count: int
+class AccuracyDataModel:
+    t_count: int = 0
+    p_count: int = 0
+    tp_count: int = 0
 
     def getSense(self):
         if self.t_count != 0:
