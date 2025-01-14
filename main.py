@@ -1,28 +1,18 @@
 import argparse
 import json
+import logging
 import os
 import sys
 import time
 
-import numpy as np
-import wfdb
-from sympy.codegen.ast import continue_
-
-from test import test_delineate, test_beat_analysis, test_atrial
-from test.dataloader.mit_arrhythmia_loader import MitArrhythmiaLoader
 from test.test_atrial import TestAtrial
+from utils import log_utils
 
-ROOT_DATA_PATH = 'data/data'
-BASE_DATA_PATH = 'data/data/parsing'
-DATA_LABEL_ARRHYTHMIA = 'arrhythmia'
-DATA_LABEL_STRESS = 'stress'
-
-TAG_LEAD2 = 'MLII'
+logger = log_utils.getCustomLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 # slice 1s waveform for
 if __name__ == "__main__":
-    MitArrhythmiaLoader().load()
-
     parser = argparse.ArgumentParser(description="Test Type Parser")
 
     parser.add_argument("--m", type=str, required=False, help="Input Test Module(delineate/atrial/classify")
@@ -36,11 +26,11 @@ if __name__ == "__main__":
             NotImplemented
             #test_delineate.run(np_data=np_data, gt_data=frame_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
         elif args.m == 'atrial':
-            NotImplemented
-            #test_beat_analysis.run(np_data=np_data)
+            TestAtrial().run()
 
         elif args.m == 'classify':
-            TestAtrial().run()
+            NotImplemented
+            #test_beat_analysis.run(np_data=np_data)
         else:
             print("The Type(--m) is not Exist")
             sys.exit(1)
