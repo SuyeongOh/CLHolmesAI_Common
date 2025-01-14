@@ -6,7 +6,7 @@ DAILY_10SEC_COUNTS = int(24 * 60 * 60 / 10)
 # Evironment
 AI_CPU_CORE = 32
 SEC_TO_MS = 1000
-BATCH_SIZE = 2048
+BATCH_SIZE = 512
 FS_MITBIH = 360
 FS = 250
 DURATION = 10
@@ -127,3 +127,13 @@ ABNORMAL_QTc = {0: 0.43, 1: 0.45} # 0: 남자, 1: 여자 . 단위: sec (s)
 
 
 AF_THRESHOLD = 0.5454725
+
+##### BEAT MODEL DICT
+BEAT_MODEL_DICT = {
+    'sweep' : True,     # Ture : SWEEP, False: Specific model
+    'model' : 'sweep',  # if Sweep flag is False plz note specific model name
+    'model_list' : [
+        'resxtranformer', # New Model
+        'beat_classifer', # OLD Model
+    ]
+}
