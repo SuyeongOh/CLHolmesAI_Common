@@ -20,7 +20,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     start_time = time.time()
-
+    
     if args.m:
         if args.m == 'delineate':
             NotImplemented
