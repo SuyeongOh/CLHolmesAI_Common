@@ -123,6 +123,7 @@ ARRHYTHMIA_REASON_DICT = {"sinus_rhythm": " ",
                           "second_degree_atrioventricular_block_type_II": "PR interval is constant and QRS-complex is dropped. ",
                           "third_degree_atrioventricular_block": "AV dissociation. "}
 
+
 ABNORMAL_QTc = {0: 0.43, 1: 0.45} # 0: 남자, 1: 여자 . 단위: sec (s)
 
 

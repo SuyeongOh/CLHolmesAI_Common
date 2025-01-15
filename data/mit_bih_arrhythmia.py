@@ -1,24 +1,26 @@
 import json
 import os
-from collections import Counter
 
 import numpy as np
-import wfdb
 import pandas as pd
-
+import wfdb
 from scipy.interpolate import interp1d
 
+from utils import data_utils
+
+#p파 라벨은 p, rhythm symbol은 +
 label_group_map = {'N':'N', 'L':'N', 'R':'N', 'e':'N', 'j':'N', '.':'N',
                    'S':'S', 'A':'S', 'J':'S',  'a':'S',
                    'V': 'V', 'E': 'V',
                    'F':'F',
-                   '/':'Q', 'f':'Q', 'Q':'Q'}
-#label_group_map = {'N':'N', 'V':'V', 'F':'F', 'S':'S',}
-#NST와 mit-bih는 같은 형식으로 같은 parser 사용 가능
+                   '/':'Q', 'f':'Q', 'Q':'Q',
+                   'p':'p',
+                   '+':'+'}
 
 
-AFIB_LABEL = '(AFIB\x00'
-AFIB_Dataset = ['201', '202', '203', '210', '219', '221', '222']
+AFIB_LABEL = '(AFIB'
+AFL_LABEL = '(AFL'
+
 class MIT_BIH_ARRHYTMIA:
     def resample_unequal(self, ts, fs_in, fs_out):
         """
@@ -36,45 +38,39 @@ class MIT_BIH_ARRHYTMIA:
             return y_new
 
 #data 폴더에 datset을 넣어주세요
-    def run(self, type: str):
-        if type == '':
+    def run(self, path: str, record_file: str):
+        if path == '':
             return
-        if type == 'arrhythmia':
-            path = 'data/mit-bih-arrhythmia-database-1.0.0'
-            record_file = 'RECORDS_NOPACE'
-        elif type == 'stress':
-            path = 'data/mit-bih-noise-stress-test-database-1.0.0'
-            record_file = 'RECORDS'
-        elif type == 'afib':
-            path = 'data/mit-bih-atrial-fibrillation-database-1.0.0/files/'
-            record_file = 'RECORDS'
 
         if not os.path.exists(path):
             return
-        save_path = f'data/parsing/{type}/'
+        dataset_name = path.split('/')[1]
+        save_path = f'parsed_data/{dataset_name}/'
         # valid_lead = ['MLII', 'II', 'I', 'MLI', 'V5']
-        valid_lead = ['MLII']
+        #p-wave에선 ECG1 = MLII, ECG2 = V1
+        valid_lead = ['MLII', 'ECG1']
         fs_out = 250
-        test_ratio = 0.2
 
-        train_ind = []
-        test_ind = []
         all_pid = []
         all_data = []
         all_label = []
         all_group = []
         all_frame_annotation = {}
         all_afib_data = {}
+        all_afl_data = {}
         with open(os.path.join(path, record_file), 'r') as fin:
             all_record_name = fin.read().strip().split('\n')
-        # test_pid = random.choices(all_record_name, k=int(len(all_record_name) * test_ratio))
-        # train_pid = list(set(all_record_name) - set(test_pid))
+
+        annot_footer = 'pwave'
+        for file in os.listdir(path) :
+            if file.endswith('.atr'):
+                annot_footer = 'atr'
+                break
 
         for record_name in all_record_name:
             try:
-                tmp_ann_res = wfdb.rdann(path + '/' + record_name, 'atr').__dict__
+                tmp_ann_res = wfdb.rdann(path + '/' + record_name, annot_footer).__dict__
                 tmp_data_res = wfdb.rdsamp(path + '/' + record_name)
-
             except:
                 print('read data failed')
                 continue
@@ -83,46 +79,23 @@ class MIT_BIH_ARRHYTMIA:
             #QRS Complex Parsing
             try:
                 annot_series = pd.Series(tmp_ann_res['symbol'], index=tmp_ann_res['sample'], name="annotations")
-                qrs_annotations = annot_series.iloc[:].loc[annot_series.isin(label_group_map.keys())]
-                frames_annotations_list = qrs_annotations.index.tolist()
+                annotations = annot_series.iloc[:].loc[annot_series.isin(label_group_map.keys())]
+                frames_annotations_list = annotations.index.tolist()
                 all_frame_annotation[record_name] = frames_annotations_list
                 all_frame_annotation[f'{record_name}_FS'] = fs
             except Exception as e:
                 print(f'file :: {record_name}, message :: {e}')
 
+            if 'atrial' in dataset_name:
+                print()
 
-            if record_name in AFIB_Dataset:
-                rhythm_label_pid = [(i, s) for i, s in enumerate(tmp_ann_res['aux_note']) if s.strip()]
-                all_afib_data[record_name] = {}
-                start_afib_flag = False
-                start_afib_idx = 0
-                record_afib_info = []
-                for i, label in rhythm_label_pid:
-                    if label == AFIB_LABEL:
-                        start_afib_flag = True
-                        start_afib_idx = i
-                        continue
-                    if start_afib_flag:
-                        try:
-                            afib_info = {}
-                            afib_info['start_idx'] = start_afib_idx
-                            afib_info['start_sample'] = all_frame_annotation[record_name][start_afib_idx]
-                            afib_info['end_idx'] = i
-                            afib_info['end_sample'] = all_frame_annotation[record_name][i]
-                            record_afib_info.append(afib_info)
-                            start_afib_flag = False
-                        except Exception as e:
-                            continue
+            rhythm_label_pid = [(i, s) for i, s in enumerate(tmp_ann_res['aux_note']) if s.strip()]
 
-                if start_afib_flag:
-                    afib_info = {}
-                    afib_info['start_idx'] = start_afib_idx
-                    afib_info['start_sample'] = all_frame_annotation[record_name][start_afib_idx]
-                    afib_info['end_idx'] = -1
-                    afib_info['end_sample'] = 650000
-                    record_afib_info.append(afib_info)
+            all_afib_data[record_name] = data_utils.rhythmLabelEpisodeFinder(
+                AFIB_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation)
+            all_afl_data[record_name] = data_utils.rhythmLabelEpisodeFinder(
+                AFL_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation)
 
-                all_afib_data[record_name] = record_afib_info
             ## total 1 second for each
             left_offset = int(1.0 * fs / 2)
             right_offset = int(fs) - int(1.0 * fs / 2)
@@ -152,12 +125,7 @@ class MIT_BIH_ARRHYTMIA:
                                 all_data.append(resample_data)
                                 all_label.append(s)
                                 all_group.append(label_group_map[s])
-                                # if record_name in train_pid:
-                                #     train_ind.append(True)
-                                #     test_ind.append(False)
-                                # else:
-                                #     train_ind.append(False)
-                                #     test_ind.append(True)
+
                         elif s=='~' :
                             idx_start = idx_list[i] - left_offset
                             idx_end = idx_list[i] + right_offset
@@ -173,16 +141,6 @@ class MIT_BIH_ARRHYTMIA:
                             continue
                         else :
                             continue
-                            # idx_start = idx_list[i] - left_offset
-                            # idx_end = idx_list[i] + right_offset
-                            # if idx_start < 0 or idx_end > len(tmp_data):
-                            #     continue
-                            # else:
-                            #     all_pid.append(record_name)
-                            #     resample_data = self.resample_unequal(tmp_data[idx_start:idx_end], fs, fs_out)
-                            #     all_data.append(resample_data)
-                            #     all_label.append('O')
-                            #     all_group.append('O')
 
                     print('record_name:{}, lead:{}, fs:{}, cumcount: {}'.format(record_name, my_lead, fs, len(all_pid)))
             else:
@@ -193,22 +151,21 @@ class MIT_BIH_ARRHYTMIA:
         all_data = np.array(all_data)
         all_label = np.array(all_label)
         all_group = np.array(all_group)
-        # train_ind = np.array(train_ind)
-        # test_ind = np.array(test_ind)
-        print(all_data.shape)
-        print(Counter(all_label))
-        print(Counter(all_group))
+
+        if 'atrial' in dataset_name:
+            print()
         if not os.path.exists(save_path):
             os.makedirs(save_path)
-        np.save(os.path.join(save_path, f'mitdb_{type}_data.npy'), all_data)
-        np.save(os.path.join(save_path, f'mitdb_{type}_label.npy'), all_label)
-        np.save(os.path.join(save_path, f'mitdb_{type}_group.npy'), all_group)
-        np.save(os.path.join(save_path, f'mitdb_{type}_pid.npy'), all_pid)
-        # np.save(os.path.join(save_path, f'mitdb_{type}_train_ind.npy'), train_ind)
-        # np.save(os.path.join(save_path, f'mitdb_{type}_test_ind.npy'), test_ind)
+        np.save(os.path.join(save_path, f'data.npy'), all_data)
+        np.save(os.path.join(save_path, f'label.npy'), all_label)
+        np.save(os.path.join(save_path, f'group.npy'), all_group)
+        np.save(os.path.join(save_path, f'pid.npy'), all_pid)
 
-        with open(os.path.join(save_path, f'mitdb_{type}_afib_annotation.json'), 'w') as afib_annot_file:
+        with open(os.path.join(save_path, f'afib_annotation.json'), 'w') as afib_annot_file:
             json.dump(all_afib_data, afib_annot_file)
 
-        with open(os.path.join(save_path, f'mitdb_{type}_frame_annotation.json'), 'w') as anoot_file:
+        with open(os.path.join(save_path, f'afl_annotation.json'), 'w') as afl_annot_file:
+            json.dump(all_afl_data, afl_annot_file)
+
+        with open(os.path.join(save_path, f'frame_annotation.json'), 'w') as anoot_file:
             json.dump(all_frame_annotation, anoot_file)
