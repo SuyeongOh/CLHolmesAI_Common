@@ -4,6 +4,7 @@ import sys
 import time
 
 from test.test_atrial import TestAtrial
+from test.test_beat_analysis import TestBeatAnalysis
 from test.test_delineate import TestDeliniate
 from utils import log_utils
 
@@ -27,15 +28,14 @@ if __name__ == "__main__":
             TestAtrial().run()
 
         elif args.m == 'classify':
-            NotImplemented
-            #test_beat_analysis.run(np_data=np_data)
+            TestBeatAnalysis().run()
         else:
             print("The Type(--m) is not Exist")
             sys.exit(1)
     else:
         TestDeliniate().run()
-        #test_beat_analysis.run(np_data=np_data)
-        #TestAtrial().run()
+        TestBeatAnalysis().run()
+        TestAtrial().run()
 
     end_time = time.time()
     elapsed_time = end_time - start_time
