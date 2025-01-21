@@ -38,7 +38,7 @@ class TestAtrial:
                 afibData = dataModel.getAfibData(pid=pid)
                 aflData = dataModel.getAflData(pid=pid)
 
-                if (not afibData) or (not aflData):
+                if len(afibData) != 0 or len(aflData) != 0:
                     model_input, atrial_range = self.create_input(pid, dataModel)
                     model_output = self.atrial_model.predict(x=model_input, batch_size=BATCH_SIZE)
                     acc = self.calculate_accuracy(model_output=model_output, atrial_range=atrial_range)
@@ -153,7 +153,7 @@ class TestAtrial:
         onset_idx = 0
         len_sample_10s = FS * DURATION
         for i, atrial_signal in enumerate(atrial_signal_10s):
-            if not i < len(atrial_signal_10s) - 1:
+            if i < len(atrial_signal_10s) - 1:
                 isAfl = np.isin(2, atrial_range[onset_idx: (onset_idx +len_sample_10s)])
             else:
                 isAfl = np.isin(2, atrial_range[onset_idx:-1])
@@ -165,7 +165,7 @@ class TestAtrial:
 
         onset_idx = 0
         for i, atrial_signal in enumerate(atrial_signal_10s):
-            if not i < len(atrial_signal_10s) - 1:
+            if i < len(atrial_signal_10s) - 1:
                 isAfib = np.isin(1, atrial_range[onset_idx: (onset_idx +len_sample_10s)])
             else:
                 isAfib = np.isin(1, atrial_range[onset_idx:-1])
@@ -176,10 +176,12 @@ class TestAtrial:
         result = {TAG_AFIB: AccuracyDataModel(
             t_count=np.count_nonzero(atrial_signal_10s == 1),
             p_count=np.count_nonzero(quant_output == 0),
+            total_count=len(atrial_signal_10s),
             tp_count=sum(q == 0 and a == 1 for q, a in zip(quant_output, atrial_signal_10s))
         ), TAG_AFL: AccuracyDataModel(
             t_count=np.count_nonzero(atrial_signal_10s == 2),
             p_count=np.count_nonzero(quant_output == 1),
+            total_count=len(atrial_signal_10s),
             tp_count=sum(q == 1 and a == 2 for q, a in zip(quant_output, atrial_signal_10s))
         )}
 
