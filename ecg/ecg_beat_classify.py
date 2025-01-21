@@ -9,7 +9,10 @@ from sklearn.cluster import KMeans
 
 import numpy as np
 import gc
-
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.utils.data as data
 from config import BATCH_SIZE, CLASSES_INDEX2, FS, LEAD, INPUT_SHAPE, NUM_BEAT_CLASSES
 
 
@@ -323,3 +326,210 @@ class BeatClassifierArchitecture:
                       metrics=['accuracy'])
 
         return model
+
+# -------------------- ResNeXtWithTransformerSE 모델 --------------------
+
+class ResNeXtWithTransformerSE(nn.Module):
+    """
+    ResNeXt + Transformer 모델에 SE 블록 및 Stochastic Depth 추가, LayerNorm 통합
+    """
+    def __init__(self,
+                 num_classes=5,
+                 transformer_layers=4,
+                 transformer_heads=8,
+                 dropout=0.2,
+                 embed_dim=512,
+                 cardinality=32,
+                 bottleneck_width=4,
+                 drop_prob=0.2,
+                 reduction=16):
+        super(ResNeXtWithTransformerSE, self).__init__()
+        self.conv1 = nn.Conv2d(2, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+        self.layer1 = self._make_layer(64, 64, blocks=2, stride=1, cardinality=cardinality,
+                                       bottleneck_width=bottleneck_width, drop_prob=drop_prob, reduction=reduction)
+        self.layer2 = self._make_layer(64, 128, blocks=2, stride=2, cardinality=cardinality,
+                                       bottleneck_width=bottleneck_width, drop_prob=drop_prob, reduction=reduction)
+        self.layer3 = self._make_layer(128, 256, blocks=2, stride=2, cardinality=cardinality,
+                                       bottleneck_width=bottleneck_width, drop_prob=drop_prob, reduction=reduction)
+        self.layer4 = self._make_layer(256, 512, blocks=2, stride=2, cardinality=cardinality,
+                                       bottleneck_width=bottleneck_width, drop_prob=drop_prob, reduction=reduction)
+
+        self.conv_reduce = nn.Conv2d(512, embed_dim, kernel_size=1, bias=False)
+        self.bn_reduce = nn.BatchNorm2d(embed_dim)
+
+        # 학습 가능한 포지셔널 인코딩
+        self.pos_enc = LearnablePositionalEncoding2D(d_model=embed_dim, max_h=32, max_w=32)
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embed_dim,
+            nhead=transformer_heads,
+            dim_feedforward=embed_dim * 4,
+            dropout=dropout,
+            activation='relu',
+            batch_first=True
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=transformer_layers)
+
+        self.fc = nn.Linear(embed_dim, 256)
+        self.final_ln = nn.LayerNorm(256)  # 최종 분류 전 LayerNorm 추가
+        self.fc2 = nn.Linear(256, num_classes)
+
+        # Residual 연결 강화: Transformer의 출력과 입력의 Residual 연결 추가
+        self.transformer_residual = nn.Linear(embed_dim, embed_dim)
+
+    def _make_layer(self, in_planes, out_planes, blocks, stride, cardinality, bottleneck_width, drop_prob, reduction):
+        layers = []
+        layers.append(ResNeXtBlockWithSE(in_planes, out_planes, stride, cardinality, bottleneck_width, drop_prob, reduction))
+        for _ in range(1, blocks):
+            layers.append(ResNeXtBlockWithSE(out_planes, out_planes, 1, cardinality, bottleneck_width, drop_prob, reduction))
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.conv1(x)            # [B, 64, H/2, W/2]
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)          # [B, 64, H/4, W/4]
+
+        x = self.layer1(x)           # [B, 64, H/4, W/4]
+        x = self.layer2(x)           # [B, 128, H/8, W/8]
+        x = self.layer3(x)           # [B, 256, H/16, W/16]
+        x = self.layer4(x)           # [B, 512, H/32, W/32]
+
+        x = self.conv_reduce(x)      # [B, embed_dim, H/32, W/32]
+        x = self.bn_reduce(x)
+        x = self.relu(x)
+
+        B, C, H, W = x.shape
+        x = x.permute(0, 2, 3, 1).reshape(B, H * W, C)  # [B, T, C], T = H * W
+        x = self.pos_enc(x, H, W)
+
+        transformer_out = self.transformer(x)  # [B, T, C]
+
+        # Residual 연결 강화
+        skip_out = self.transformer_residual(x.mean(dim=1))  # [B, embed_dim]
+        transformer_out += skip_out.unsqueeze(1)              # [B, T, embed_dim]
+
+        transformer_out = transformer_out.mean(dim=1)        # [B, embed_dim]
+
+        out = self.fc(transformer_out)                       # [B, 256]
+        out = self.final_ln(out)                              # LayerNorm 적용
+        out = self.fc2(out)                                   # [B, num_classes]
+        return out
+# -------------------- 2D LearnablePositional Encoding --------------------
+
+class LearnablePositionalEncoding2D(nn.Module):
+    """
+    학습 가능한 2D 포지셔널 인코딩
+    """
+    def __init__(self, d_model, max_h=32, max_w=32):
+        super(LearnablePositionalEncoding2D, self).__init__()
+        self.row_embed = nn.Parameter(torch.randn(max_h, d_model // 2))
+        self.col_embed = nn.Parameter(torch.randn(max_w, d_model // 2))
+
+    def forward(self, x, H, W):
+        # x: [B, T, E] where T = H * W
+        row_pos = self.row_embed[:H].unsqueeze(1).repeat(1, W, 1)  # [H, W, E/2]
+        col_pos = self.col_embed[:W].unsqueeze(0).repeat(H, 1, 1)  # [H, W, E/2]
+        pos = torch.cat([row_pos, col_pos], dim=-1).view(1, H * W, -1)  # [1, T, E]
+        return x + pos
+
+# -------------------- ResNeXt + SE + Stochastic Depth  --------------------
+
+class ResNeXtBlockWithSE(nn.Module):
+    """
+    ResNeXt 블록에 SE 블록과 Stochastic Depth를 추가한 클래스
+    """
+    def __init__(self, in_planes, out_planes, stride=1, cardinality=32, bottleneck_width=4, drop_prob=0.2, reduction=16):
+        super(ResNeXtBlockWithSE, self).__init__()
+        group_width = cardinality * bottleneck_width
+
+        # 1x1 Convolution (Bottleneck Reduction)
+        self.conv1 = nn.Conv2d(in_planes, group_width, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(group_width)
+
+        # 3x3 Grouped Convolution
+        self.conv2 = nn.Conv2d(
+            group_width, group_width, kernel_size=3, stride=stride,
+            padding=1, groups=cardinality, bias=False
+        )
+        self.bn2 = nn.BatchNorm2d(group_width)
+
+        # 1x1 Convolution (Restoration)
+        self.conv3 = nn.Conv2d(group_width, out_planes, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_planes)
+
+        self.relu = nn.ReLU(inplace=True)
+
+        # Squeeze-and-Excitation
+        self.se = SEBlock(out_planes, reduction=reduction)
+
+        # Stochastic Depth
+        self.stochastic_depth = StochasticDepth(drop_prob=drop_prob)
+
+        # Downsampling for residual connection if needed
+        self.downsample = None
+        if stride != 1 or in_planes != out_planes:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_planes)
+            )
+
+    def forward(self, x):
+        identity = x
+
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.relu(self.bn2(self.conv2(out)))
+        out = self.bn3(self.conv3(out))
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out = self.se(out)  # SE 블록 적용
+        out = self.stochastic_depth(out)  # Stochastic Depth 적용
+        out += identity
+        out = self.relu(out)
+        return out
+
+# -------------------- Squeeze-and-Excitation  --------------------
+
+class SEBlock(nn.Module):
+    """
+    Squeeze-and-Excitation 블록: 채널 간의 상호작용을 학습하여 중요한 특징을 강조하고 덜 중요한 특징을 억제함
+    """
+    def __init__(self, channel, reduction=16):
+        super(SEBlock, self).__init__()
+        self.fc1 = nn.Linear(channel, channel // reduction, bias=False)
+        self.relu = nn.ReLU(inplace=True)
+        self.fc2 = nn.Linear(channel // reduction, channel, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        B, C, H, W = x.size()
+        y = x.view(B, C, -1).mean(dim=2)  # Global Average Pooling
+        y = self.fc1(y)
+        y = self.relu(y)
+        y = self.fc2(y)
+        y = self.sigmoid(y).view(B, C, 1, 1)
+        return x * y.expand_as(x)
+
+# -------------------- Stochastic Depth  --------------------
+
+class StochasticDepth(nn.Module):
+    """
+    Stochastic Depth 모듈: 일부 레이어를 랜덤하게 드롭하여 학습을 안정화시키고 일반화 성능을 향상시킴
+    """
+    def __init__(self, drop_prob=0.2):
+        super(StochasticDepth, self).__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        if not self.training or self.drop_prob == 0.0:
+            return x
+        keep_prob = 1 - self.drop_prob
+        random_tensor = keep_prob + torch.rand(x.shape[0], 1, 1, 1, device=x.device)
+        binary_tensor = torch.floor(random_tensor)
+        return x / keep_prob * binary_tensor
