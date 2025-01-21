@@ -1,11 +1,10 @@
 import argparse
-import json
 import logging
-import os
 import sys
 import time
 
 from test.test_atrial import TestAtrial
+from test.test_delineate import TestDeliniate
 from utils import log_utils
 
 logger = log_utils.getCustomLogger(__name__)
@@ -23,8 +22,7 @@ if __name__ == "__main__":
     
     if args.m:
         if args.m == 'delineate':
-            NotImplemented
-            #test_delineate.run(np_data=np_data, gt_data=frame_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
+            TestDeliniate().run()
         elif args.m == 'atrial':
             TestAtrial().run()
 
@@ -35,9 +33,9 @@ if __name__ == "__main__":
             print("The Type(--m) is not Exist")
             sys.exit(1)
     else:
-        #test_delineate.run(np_data=np_data, gt_data=frame_json_data, raw_signal=raw_record, raw_fs=raw_record_fs)
+        TestDeliniate().run()
         #test_beat_analysis.run(np_data=np_data)
-        TestAtrial().run()
+        #TestAtrial().run()
 
     end_time = time.time()
     elapsed_time = end_time - start_time
