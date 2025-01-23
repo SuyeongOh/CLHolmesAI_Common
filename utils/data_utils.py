@@ -1,4 +1,4 @@
-def rhythmLabelEpisodeFinder(target_label: str, record: str, rhythm_label_pid, all_frame_annotation):
+def rhythmLabelEpisodeFinder(target_label: str, record: str, rhythm_label_pid, all_frame_annotation, siglen):
     start_afib_flag = False
     start_afib_idx = 0
     record_label_info = []
@@ -24,6 +24,6 @@ def rhythmLabelEpisodeFinder(target_label: str, record: str, rhythm_label_pid, a
         label_info['start_idx'] = start_afib_idx
         label_info['start_sample'] = all_frame_annotation[record][start_afib_idx]
         label_info['end_idx'] = -1
-        label_info['end_sample'] = 650000
+        label_info['end_sample'] = siglen
         record_label_info.append(label_info)
     return record_label_info

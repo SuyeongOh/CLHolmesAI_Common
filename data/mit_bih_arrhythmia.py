@@ -75,7 +75,7 @@ class MIT_BIH_ARRHYTMIA:
                 print('read data failed')
                 continue
             fs = tmp_data_res[1]['fs']
-
+            siglen = tmp_data_res[1]['sig_len']
             #QRS Complex Parsing
             try:
                 annot_series = pd.Series(tmp_ann_res['symbol'], index=tmp_ann_res['sample'], name="annotations")
@@ -91,10 +91,12 @@ class MIT_BIH_ARRHYTMIA:
 
             rhythm_label_pid = [(i, s) for i, s in enumerate(tmp_ann_res['aux_note']) if s.strip()]
 
+            if 'fibrillation' in dataset_name:
+                print()
             all_afib_data[record_name] = data_utils.rhythmLabelEpisodeFinder(
-                AFIB_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation)
+                AFIB_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation, siglen=siglen)
             all_afl_data[record_name] = data_utils.rhythmLabelEpisodeFinder(
-                AFL_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation)
+                AFL_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation, siglen=siglen)
 
             ## total 1 second for each
             left_offset = int(1.0 * fs / 2)
