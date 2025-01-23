@@ -20,8 +20,8 @@ class MitArrhythmiaLoader:
             ]
         elif type == 'atrial':
             self.dataset_path = [
-                'mit-bih-arrhythmia-database-1.0.0/',
-                'mit-bih-atrial-fibrillation-database-1.0.0'
+                'mit-bih-arrhythmia-database-1.0.0/'
+                #mit-bih-atrial-fibrillation-database-1.0.0/'
             ]
         elif type == 'classify':
             self.dataset_path = [
