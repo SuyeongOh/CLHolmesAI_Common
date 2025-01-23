@@ -49,7 +49,7 @@ class MIT_BIH_ARRHYTMIA:
         # valid_lead = ['MLII', 'II', 'I', 'MLI', 'V5']
         #p-wave에선 ECG1 = MLII, ECG2 = V1
         valid_lead = ['MLII', 'ECG1']
-        fs_out = 250
+        fs_out = 100
 
         all_pid = []
         all_data = []
