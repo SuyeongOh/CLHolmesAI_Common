@@ -6,7 +6,6 @@ import pandas as pd
 import wfdb
 from scipy.interpolate import interp1d
 
-from config import FS
 from utils import data_utils
 
 #p파 라벨은 p, rhythm symbol은 +
@@ -50,7 +49,7 @@ class MIT_BIH_ARRHYTMIA:
         # valid_lead = ['MLII', 'II', 'I', 'MLI', 'V5']
         #p-wave에선 ECG1 = MLII, ECG2 = V1
         valid_lead = ['MLII', 'ECG1']
-        fs_out = FS
+        fs_out = 250
 
         all_pid = []
         all_data = []

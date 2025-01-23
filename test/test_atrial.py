@@ -14,7 +14,7 @@ from utils import log_utils
 TAG_AFIB = 'afib'
 TAG_AFL = 'afl'
 weights_path = './weights/atrial_weights.pth'
-
+FS=100
 logger = log_utils.getCustomLogger(__name__)
 
 class TestAtrial:
