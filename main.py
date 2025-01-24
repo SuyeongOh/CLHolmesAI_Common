@@ -4,8 +4,8 @@ import sys
 import time
 
 from test.test_atrial import TestAtrial
-#from test.test_beat_analysis import TestBeatAnalysis
-#from test.test_delineate import TestDeliniate
+from test.test_beat_analysis import TestBeatAnalysis
+from test.test_delineate import TestDeliniate
 from utils import log_utils
 
 logger = log_utils.getCustomLogger(__name__)
@@ -33,8 +33,8 @@ if __name__ == "__main__":
             print("The Type(--m) is not Exist")
             sys.exit(1)
     else:
-        #TestDeliniate().run()
-        #TestBeatAnalysis().run()
+        TestDeliniate().run()
+        TestBeatAnalysis().run()
         TestAtrial().run()
 
     end_time = time.time()
