@@ -1,0 +1,9 @@
+*.idea
+*.venv
+*data/data
+*data/parsed_data
+*data/__pycache__
+*ecg/__pycache__
+*test/__pycache__
+*utils/__pycache__
+*__pycache__
