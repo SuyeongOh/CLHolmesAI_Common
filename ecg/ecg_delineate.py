@@ -8,7 +8,8 @@ from tensorflow.keras.layers import (Conv1D, MaxPooling1D, concatenate, BatchNor
 from tensorflow.keras.models import Model
 
 from config import FS, DURATION, BATCH_SIZE, LEAD, NUM_COMPONENTS_CLASSES, AI_CPU_CORE
-
+import torch
+import torch.nn as nn
 
 class ECGSegmentation:
     def __init__(self):
@@ -156,8 +157,78 @@ class ECGSegmentation:
         ECG_dict = self.ECGWaveAnalysis(ECG_dict)
 
         return ECG_dict
+'''
+U-Net Dae-Yeol
+'''
+class UNetQRS(nn.Module):
+    def __init__(self, num_classes):
+        super(UNetQRS, self).__init__()
 
+        # Encoder (Downsampling)
+        self.enc1 = self._conv_block(2, 64)
+        self.enc2 = self._conv_block(64, 128)
+        self.enc3 = self._conv_block(128, 256)
+        self.enc4 = self._conv_block(256, 512)
 
+        # Bottleneck
+        self.bottleneck = self._conv_block(512, 1024)
+
+        # Decoder (Upsampling)
+        self.dec4 = self._upconv_block(1024 + 512, 512)
+        self.dec3 = self._upconv_block(512 + 256, 256)
+        self.dec2 = self._upconv_block(256 + 128, 128)
+        self.dec1 = self._conv_block(128 + 64, 64)
+
+        # Final Convolution (Output layer)
+        self.final_conv = nn.Conv2d(64, num_classes, kernel_size=1)
+
+    def _conv_block(self, in_channels, out_channels):
+        """Double convolution block"""
+        return nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        )
+
+    def _upconv_block(self, in_channels, out_channels):
+        """Upsampling + Convolution block"""
+        return nn.Sequential(
+            nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        )
+
+    def forward(self, x):
+        # Encoder
+        e1 = self.enc1(x)
+        e2 = self.enc2(nn.MaxPool2d(2)(e1))
+        e3 = self.enc3(nn.MaxPool2d(2)(e2))
+        e4 = self.enc4(nn.MaxPool2d(2)(e3))
+
+        # Bottleneck
+        b = self.bottleneck(nn.MaxPool2d(2)(e4))
+
+        # Decoder
+        b_upsampled = nn.functional.interpolate(b, size=e4.shape[2:], mode='bilinear', align_corners=True)
+        d4 = self.dec4(torch.cat([b_upsampled, e4], dim=1))
+        d4_upsampled = nn.functional.interpolate(d4, size=e3.shape[2:], mode='bilinear', align_corners=True)
+        d3 = self.dec3(torch.cat([d4_upsampled, e3], dim=1))
+        d3_upsampled = nn.functional.interpolate(d3, size=e2.shape[2:], mode='bilinear', align_corners=True)
+        d2 = self.dec2(torch.cat([d3_upsampled, e2], dim=1))
+        d2_upsampled = nn.functional.interpolate(d2, size=e1.shape[2:], mode='bilinear', align_corners=True)
+        d1 = self.dec1(torch.cat([d2_upsampled, e1], dim=1))
+
+        # Final output logits
+        out = self.final_conv(d1)  # Shape: (batch_size, num_classes, 151, 1000)
+        out = out.mean(dim=2)      # Collapse height dimension -> Shape: (batch_size, num_classes, 1000)
+        return out  # Logits
+
+'''
+U-Net Mediv
+'''
 class ECGSegmentationArchitecture:
     def __init__(self):
         self.name = "ECGsegmentation"
@@ -492,9 +563,9 @@ class ECGSegmentationArchitecture:
         model = Model(inputs=inputs, outputs=outputs)
         return model
 
-
-
-
+'''
+DataPostProcessor
+'''
 class DataPostprocessor:
     def __init__(self, y_pred):
         self.name = "Data_postprocessor"
