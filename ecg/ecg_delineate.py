@@ -7,7 +7,7 @@ from tensorflow.keras.layers import (Conv1D, MaxPooling1D, concatenate, BatchNor
                                      ZeroPadding1D, SpatialDropout1D, Conv1DTranspose, Cropping1D)
 from tensorflow.keras.models import Model
 
-from config import FS, DURATION, BATCH_SIZE, LEAD, NUM_COMPONENTS_CLASSES, AI_CPU_CORE
+from config import FS, DURATION, BATCH_SIZE, LEAD, NUM_COMPONENTS_CLASSES, AI_CPU_CORE, FS_delineate 
 import torch
 import torch.nn as nn
 
@@ -24,8 +24,8 @@ class ECGSegmentation:
         # 1. 10초 심전도를 list로 모두 가져오기
         # (N, 2500,) -> (N, 2500, 1) -> (N, 1250, 1), (N, 1250, 1) -> (2N, 1250, 1)
         all_ecg10s = np.array([ECG_dict[f"ecg_{i}"]["ecg"][:, np.newaxis] for i in range(len(ECG_dict))])
-        all_ecg5s_1 = all_ecg10s[:, :FS * DURATION // 2]
-        all_ecg5s_2 = all_ecg10s[:, FS * DURATION // 2:]
+        all_ecg5s_1 = all_ecg10s[:, :FS_delineate * DURATION // 2]
+        all_ecg5s_2 = all_ecg10s[:, FS_delineate * DURATION // 2:]
         all_ecg5s = np.concatenate((all_ecg5s_1, all_ecg5s_2), axis=0)
         del all_ecg5s_1, all_ecg5s_2
 
@@ -133,7 +133,7 @@ class ECGSegmentation:
             t_offset, qrs_onset = t[2], qrs[1]
             QTI_list.append(t_offset - qrs_onset) # T_offset - Q_onset = QT interval
 
-        QTI_list = np.array(QTI_list) / FS
+        QTI_list = np.array(QTI_list) / FS_delineate
 
         # 2. RRI
         QRS_tuples = [group[0] for group in grouped_data] # QRS (2)만 모아둠, N개
@@ -142,7 +142,7 @@ class ECGSegmentation:
             qrs = ecg[onset:offset]
             R_idx = np.argmax(qrs) + onset
             R_indices.append(R_idx) # N개
-        RRI_list = np.diff(R_indices) / FS  # unit: sec, N-1개
+        RRI_list = np.diff(R_indices) / FS_delineate  # unit: sec, N-1개
         RRI_sqrt_list = np.sqrt(RRI_list) # N-1개
 
         if RRI_sqrt_list.size != 0:
@@ -241,7 +241,7 @@ class ECGSegmentationArchitecture:
 
     def UNet1D(self):
 
-        inputs = Input((FS*DURATION//2, LEAD))  # length of 5 sec signal is 1,250
+        inputs = Input((FS_delineate*DURATION//2, LEAD))  # length of 5 sec signal is 1,250
         x = ZeroPadding1D(padding = self.pad_and_crop_size)(inputs)
 
         # Encoder
@@ -347,7 +347,7 @@ class ECGSegmentationArchitecture:
         return model
 
     def UNet1DPlusPlus(self):
-        inputs = Input((FS * DURATION // 2, LEAD))  # length of 5 sec signal is 1,250
+        inputs = Input((FS_delineate * DURATION // 2, LEAD))  # length of 5 sec signal is 1,250
         x = ZeroPadding1D(padding=self.pad_and_crop_size)(inputs)
 
         # Encoder
@@ -570,7 +570,7 @@ class DataPostprocessor:
     def __init__(self, y_pred):
         self.name = "Data_postprocessor"
         self.SPBon200BPM = 0.3 # s
-        self.interval = FS * self.SPBon200BPM # 75 samples
+        self.interval = FS_delineate * self.SPBon200BPM # 75 samples
         self.y_pred = y_pred
 
     # def __del__(self):
