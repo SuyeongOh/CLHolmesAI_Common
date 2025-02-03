@@ -7,8 +7,9 @@ from tensorflow.keras.layers import (Conv1D, MaxPooling1D, concatenate, BatchNor
                                      ZeroPadding1D, SpatialDropout1D, Conv1DTranspose, Cropping1D)
 from tensorflow.keras.models import Model
 
-from config import FS, DURATION, BATCH_SIZE, LEAD, NUM_COMPONENTS_CLASSES, AI_CPU_CORE
-
+from config import FS, DURATION, BATCH_SIZE, LEAD, NUM_COMPONENTS_CLASSES, AI_CPU_CORE, FS_delineate 
+import torch
+import torch.nn as nn
 
 class ECGSegmentation:
     def __init__(self):
@@ -23,8 +24,8 @@ class ECGSegmentation:
         # 1. 10초 심전도를 list로 모두 가져오기
         # (N, 2500,) -> (N, 2500, 1) -> (N, 1250, 1), (N, 1250, 1) -> (2N, 1250, 1)
         all_ecg10s = np.array([ECG_dict[f"ecg_{i}"]["ecg"][:, np.newaxis] for i in range(len(ECG_dict))])
-        all_ecg5s_1 = all_ecg10s[:, :FS * DURATION // 2]
-        all_ecg5s_2 = all_ecg10s[:, FS * DURATION // 2:]
+        all_ecg5s_1 = all_ecg10s[:, :FS_delineate * DURATION // 2]
+        all_ecg5s_2 = all_ecg10s[:, FS_delineate * DURATION // 2:]
         all_ecg5s = np.concatenate((all_ecg5s_1, all_ecg5s_2), axis=0)
         del all_ecg5s_1, all_ecg5s_2
 
@@ -132,7 +133,7 @@ class ECGSegmentation:
             t_offset, qrs_onset = t[2], qrs[1]
             QTI_list.append(t_offset - qrs_onset) # T_offset - Q_onset = QT interval
 
-        QTI_list = np.array(QTI_list) / FS
+        QTI_list = np.array(QTI_list) / FS_delineate
 
         # 2. RRI
         QRS_tuples = [group[0] for group in grouped_data] # QRS (2)만 모아둠, N개
@@ -141,7 +142,7 @@ class ECGSegmentation:
             qrs = ecg[onset:offset]
             R_idx = np.argmax(qrs) + onset
             R_indices.append(R_idx) # N개
-        RRI_list = np.diff(R_indices) / FS  # unit: sec, N-1개
+        RRI_list = np.diff(R_indices) / FS_delineate  # unit: sec, N-1개
         RRI_sqrt_list = np.sqrt(RRI_list) # N-1개
 
         if RRI_sqrt_list.size != 0:
@@ -156,8 +157,78 @@ class ECGSegmentation:
         ECG_dict = self.ECGWaveAnalysis(ECG_dict)
 
         return ECG_dict
+'''
+U-Net Dae-Yeol
+'''
+class UNetQRS(nn.Module):
+    def __init__(self, num_classes):
+        super(UNetQRS, self).__init__()
 
+        # Encoder (Downsampling)
+        self.enc1 = self._conv_block(2, 64)
+        self.enc2 = self._conv_block(64, 128)
+        self.enc3 = self._conv_block(128, 256)
+        self.enc4 = self._conv_block(256, 512)
 
+        # Bottleneck
+        self.bottleneck = self._conv_block(512, 1024)
+
+        # Decoder (Upsampling)
+        self.dec4 = self._upconv_block(1024 + 512, 512)
+        self.dec3 = self._upconv_block(512 + 256, 256)
+        self.dec2 = self._upconv_block(256 + 128, 128)
+        self.dec1 = self._conv_block(128 + 64, 64)
+
+        # Final Convolution (Output layer)
+        self.final_conv = nn.Conv2d(64, num_classes, kernel_size=1)
+
+    def _conv_block(self, in_channels, out_channels):
+        """Double convolution block"""
+        return nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        )
+
+    def _upconv_block(self, in_channels, out_channels):
+        """Upsampling + Convolution block"""
+        return nn.Sequential(
+            nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        )
+
+    def forward(self, x):
+        # Encoder
+        e1 = self.enc1(x)
+        e2 = self.enc2(nn.MaxPool2d(2)(e1))
+        e3 = self.enc3(nn.MaxPool2d(2)(e2))
+        e4 = self.enc4(nn.MaxPool2d(2)(e3))
+
+        # Bottleneck
+        b = self.bottleneck(nn.MaxPool2d(2)(e4))
+
+        # Decoder
+        b_upsampled = nn.functional.interpolate(b, size=e4.shape[2:], mode='bilinear', align_corners=True)
+        d4 = self.dec4(torch.cat([b_upsampled, e4], dim=1))
+        d4_upsampled = nn.functional.interpolate(d4, size=e3.shape[2:], mode='bilinear', align_corners=True)
+        d3 = self.dec3(torch.cat([d4_upsampled, e3], dim=1))
+        d3_upsampled = nn.functional.interpolate(d3, size=e2.shape[2:], mode='bilinear', align_corners=True)
+        d2 = self.dec2(torch.cat([d3_upsampled, e2], dim=1))
+        d2_upsampled = nn.functional.interpolate(d2, size=e1.shape[2:], mode='bilinear', align_corners=True)
+        d1 = self.dec1(torch.cat([d2_upsampled, e1], dim=1))
+
+        # Final output logits
+        out = self.final_conv(d1)  # Shape: (batch_size, num_classes, 151, 1000)
+        out = out.mean(dim=2)      # Collapse height dimension -> Shape: (batch_size, num_classes, 1000)
+        return out  # Logits
+
+'''
+U-Net Mediv
+'''
 class ECGSegmentationArchitecture:
     def __init__(self):
         self.name = "ECGsegmentation"
@@ -170,7 +241,7 @@ class ECGSegmentationArchitecture:
 
     def UNet1D(self):
 
-        inputs = Input((FS*DURATION//2, LEAD))  # length of 5 sec signal is 1,250
+        inputs = Input((FS_delineate*DURATION//2, LEAD))  # length of 5 sec signal is 1,250
         x = ZeroPadding1D(padding = self.pad_and_crop_size)(inputs)
 
         # Encoder
@@ -276,7 +347,7 @@ class ECGSegmentationArchitecture:
         return model
 
     def UNet1DPlusPlus(self):
-        inputs = Input((FS * DURATION // 2, LEAD))  # length of 5 sec signal is 1,250
+        inputs = Input((FS_delineate * DURATION // 2, LEAD))  # length of 5 sec signal is 1,250
         x = ZeroPadding1D(padding=self.pad_and_crop_size)(inputs)
 
         # Encoder
@@ -492,14 +563,14 @@ class ECGSegmentationArchitecture:
         model = Model(inputs=inputs, outputs=outputs)
         return model
 
-
-
-
+'''
+DataPostProcessor
+'''
 class DataPostprocessor:
     def __init__(self, y_pred):
         self.name = "Data_postprocessor"
         self.SPBon200BPM = 0.3 # s
-        self.interval = FS * self.SPBon200BPM # 75 samples
+        self.interval = FS_delineate * self.SPBon200BPM # 75 samples
         self.y_pred = y_pred
 
     # def __del__(self):
