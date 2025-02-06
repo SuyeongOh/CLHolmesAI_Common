@@ -21,6 +21,7 @@ label_group_map = {'N':'N', 'L':'N', 'R':'N', 'e':'N', 'j':'N', '.':'N',
 AFIB_LABEL = '(AFIB'
 AFL_LABEL = '(AFL'
 
+#https://github.com/hsd1503/PhysioNet : dataset parser 원본코드.
 class MIT_BIH_ARRHYTMIA:
     def resample_unequal(self, ts, fs_in, fs_out):
         """
@@ -61,22 +62,30 @@ class MIT_BIH_ARRHYTMIA:
         with open(os.path.join(path, record_file), 'r') as fin:
             all_record_name = fin.read().strip().split('\n')
 
+        #Pwave dataset은 label의 확장자가 다름
         annot_footer = 'pwave'
         for file in os.listdir(path) :
             if file.endswith('.atr'):
                 annot_footer = 'atr'
                 break
 
+        #record별 label 추출
         for record_name in all_record_name:
+            #wfdb 이용 label extract
             try:
                 tmp_ann_res = wfdb.rdann(path + '/' + record_name, annot_footer).__dict__
                 tmp_data_res = wfdb.rdsamp(path + '/' + record_name)
             except:
                 print('read data failed')
                 continue
+
+            #tmp_data_res[0] : signal, lead별로 2차워 구성
+            #tmp_data_res[1] : 기타 record 전체에 대한 dataset
             fs = tmp_data_res[1]['fs']
+            siglen = tmp_data_res[1]['sig_len']
 
             #QRS Complex Parsing
+            #all_frame_annotation : annotation에 대한 전체 정보
             try:
                 annot_series = pd.Series(tmp_ann_res['symbol'], index=tmp_ann_res['sample'], name="annotations")
                 annotations = annot_series.iloc[:].loc[annot_series.isin(label_group_map.keys())]
@@ -86,15 +95,14 @@ class MIT_BIH_ARRHYTMIA:
             except Exception as e:
                 print(f'file :: {record_name}, message :: {e}')
 
-            if 'atrial' in dataset_name:
-                print()
-
+            #데이터는 beat label(nsvfq,,,) / rhythm label(afib, afl, normal ....)으로 나뉨
             rhythm_label_pid = [(i, s) for i, s in enumerate(tmp_ann_res['aux_note']) if s.strip()]
 
+            #afl/afib data 파싱 과정. rhythmlabel의 위치를 파싱
             all_afib_data[record_name] = data_utils.rhythmLabelEpisodeFinder(
-                AFIB_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation)
+                AFIB_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation, siglen=siglen)
             all_afl_data[record_name] = data_utils.rhythmLabelEpisodeFinder(
-                AFL_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation)
+                AFL_LABEL, record=record_name, rhythm_label_pid=rhythm_label_pid, all_frame_annotation=all_frame_annotation, siglen=siglen)
 
             ## total 1 second for each
             left_offset = int(1.0 * fs / 2)
@@ -102,6 +110,9 @@ class MIT_BIH_ARRHYTMIA:
 
             lead_in_data = tmp_data_res[1]['sig_name']
             my_lead_all = []
+
+            # pid별 Dataset 정리 코드
+
             for tmp_lead in valid_lead:
                 if tmp_lead in lead_in_data:
                     my_lead_all.append(tmp_lead)
@@ -147,6 +158,7 @@ class MIT_BIH_ARRHYTMIA:
                 print('lead in data: [{0}]. no valid lead in {1}'.format(lead_in_data, record_name))
                 continue
 
+        #numpy array 이용시 용이
         all_pid = np.array(all_pid)
         all_data = np.array(all_data)
         all_label = np.array(all_label)
