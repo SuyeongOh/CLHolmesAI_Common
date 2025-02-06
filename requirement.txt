@@ -7,3 +7,4 @@ tensorflow[and-cuda]==2.16.1
 neurokit2
 stockwell
 openpyxl
+vg-beat-detectors
