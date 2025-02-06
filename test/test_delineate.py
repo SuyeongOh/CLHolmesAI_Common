@@ -2,7 +2,6 @@ import neurokit2 as nk
 import numpy as np
 from scipy.signal import resample
 
-from ecgdetectors import Detectors
 from config import  FS, DURATION, BATCH_SIZE, SEC_TO_MS
 #from ecg.ecg_delineate import ECGSegmentationArchitecture
 from scipy.signal import butter, lfilter, filtfilt, firwin, lfiltic, resample
