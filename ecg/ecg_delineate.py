@@ -1,5 +1,6 @@
 import time
 import numpy as np
+from joblib import Parallel, delayed
 from vg_beat_detectors import FastNVG
 import json
 from scipy.signal import filtfilt, resample
@@ -13,16 +14,21 @@ class ECGSegmentation:
     # def __del__(self):
     #     print(self.name + " object disappears.")
 
-    def ECGWaveAnalysis(self, ECG_dict):
+    def run(self, ecg_array):
+        print("2. Segmentation")
+        segmentation_result = self.ECGWaveAnalysis(ecg_array)
+
+        return segmentation_result
+
+    def ECGWaveAnalysis(self, ecg_array):
         start_time = time.perf_counter()
         # 1. 10초 심전도를 list로 모두 가져오기
-        all_ecg10s = np.array([ECG_dict[f"ecg_{i}"]["ecg"][:, np.newaxis] for i in range(len(ECG_dict))])
 
         # 2. ECG segmentation
         segmentation_result = []
         b, a = self.load_filter_coefficients()
 
-        for idx, ecg_signal in enumerate(all_ecg10s):
+        for idx, ecg_signal in enumerate(ecg_array):
             # R 피크 탐지
             detected_rpeaks = self.detect_r_peaks(ecg_signal.squeeze(), FS, b, a)
 
@@ -49,31 +55,15 @@ class ECGSegmentation:
                 "t_offsets": t_offsets,
             })
 
-        # 3. 후처리 (스무딩 및 QTc 계산)
-        smoothing = DataPostprocessor(segmentation_result)
-        segmentation_result = smoothing.smooth()
-        del smoothing
-
         end_time = time.perf_counter()
         execution_time1 = end_time - start_time
 
         print(f"2.1. Segmentation: {execution_time1} sec")
-        start_time = time.perf_counter()
 
-        for i, result in enumerate(segmentation_result):
-            ECG_dict[f"ecg_{i}"]["segment"] = self.transformResult(result)
-            ECG_dict[f"ecg_{i}"]["beat_qtc"] = self.calculateQTc(ECG_dict[f"ecg_{i}"]["segment"],
-                                                                ECG_dict[f"ecg_{i}"]["ecg"])
-
-        end_time = time.perf_counter()
-        execution_time2 = end_time - start_time
-
-        print(f"2.2. QTc: {execution_time2} sec")
-        print(f"Segmentation time: {execution_time1 + execution_time2} sec\n")
-        return ECG_dict
+        return segmentation_result
 
 
-    def load_filter_coefficients(self, filename="optimized_filter_mit_arr.json"):
+    def load_filter_coefficients(self, filename="ecg/optimized_filter_mit_arr.json"):
         try:
             with open(filename, "r") as file:
                 filter_data = json.load(file)
@@ -240,53 +230,3 @@ class ECGSegmentation:
         QTc_list = np.round(QTI_list / RRI_sqrt_list, 3)
         QTc_with_R_idx = [[float(QT_info[0]), int(QT_info[1])] for QT_info in zip(QTc_list, R_indices)] # (QTc, R_idx)
         return QTc_with_R_idx
-
-    def main(self, ECG_dict):
-        print("2. Segmentation")
-        ECG_dict = self.ECGWaveAnalysis(ECG_dict)
-
-        return ECG_dict
-
-
-class DataPostprocessor:
-    def __init__(self, y_pred):
-        self.name = "Data_postprocessor"
-        self.SPBon200BPM = 0.3 # s
-        self.interval = FS * self.SPBon200BPM # 75 samples
-        self.y_pred = y_pred
-
-    # def __del__(self):
-    #     print(self.name + " object disappears.")
-
-    def smoothComponent(self, mask, mask_component, value):
-        transitions_value_to_0 = np.where(np.diff(mask_component) == -value)[0]
-        transitions_0_to_value = np.where(np.diff(mask_component) == value)[0]
-
-        # 거리가 75보다 작은 구간을 p=1, qrs=2, t=3로 변경
-        for start_idx in transitions_value_to_0:
-            next_0_to_1 = transitions_0_to_value[transitions_0_to_value > start_idx]
-            if next_0_to_1.size > 0:
-                end_idx = next_0_to_1[0]
-                if end_idx - start_idx < self.interval:
-                    mask[start_idx:end_idx + 1] = value
-        return mask
-
-    def _smooth(self, mask):
-        # 1. P
-        mask_component = mask.copy()
-        mask_component[mask_component != 1] = 0
-        mask = self.smoothComponent(mask, mask_component, 1)
-
-        # 2. QRS
-        mask_component = mask.copy()
-        mask_component[mask_component != 2] = 0
-        mask = self.smoothComponent(mask, mask_component, 2)
-
-        # 3. T
-        mask_component = mask.copy()
-        mask_component[mask_component != 3] = 0
-        mask = self.smoothComponent(mask, mask_component, 3)
-        return mask
-
-    def smooth(self):
-        return np.array(Parallel(AI_CPU_CORE)(delayed(self._smooth)(mask) for mask in self.y_pred))
