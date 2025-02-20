@@ -98,6 +98,7 @@ class ECGSegmentation:
         s_peaks = []
 
         for r in r_peaks:
+            #TODO r peak index = 0 일때 해결 방법
             q_start = max(0, r - search_window)
             q_end = r
             s_start = r
