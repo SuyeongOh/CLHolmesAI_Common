@@ -1,10 +1,7 @@
-import neurokit2 as nk
 import numpy as np
-
-from scipy.signal import resample, butter, medfilt, lfilter
-from sympy import false
-
 from scipy.interpolate import interp1d
+from scipy.signal import butter, medfilt
+from scipy.signal import firwin, lfilter, filtfilt
 
 from config import FS, ORDER, FILTERS_WIDTH, HIGHCUT2
 
@@ -35,6 +32,29 @@ def LPF(data, highcut):  # cutoff 30 Hz
     b, a = butter(ORDER, high, btype='lowpass')
     return lfilter(b, a, data)
 
+def LPF_for_delinate_DY(signal, cutoff, fs, numtaps=101):
+    """
+       FIR Low-pass filter를 적용하고 Zero-phase filtering을 통해 위상 지연을 제거하는 함수.
+       Parameters:
+       - signal: 입력 신호 (1D numpy array)
+       - cutoff: 컷오프 주파수 (Hz)
+       - fs: 샘플링 주파수 (Hz)
+       - numtaps: 필터 계수의 수 (default=101)
+       Returns:
+       - filtered_signal: Zero-phase 필터링된 신호 (1D numpy array)
+       """
+    nyquist = 0.5 * fs
+    normal_cutoff = cutoff / nyquist
+
+    # FIR 필터 계수 생성
+    fir_coeff = firwin(numtaps, normal_cutoff)
+
+    # Zero-phase Filtering 적용
+    filtered_signal = filtfilt(fir_coeff, [1.0], signal)
+
+    return filtered_signal
+
+
 def detrendonECG(ecg10s):
     mfa = np.zeros(len(FILTERS_WIDTH), dtype='int')
 
@@ -43,14 +63,14 @@ def detrendonECG(ecg10s):
 
     trend = ecg10s  # read orignal signal
     for mi in range(0, len(mfa)):
-        trend = medfilt(trend, mfa[mi])      # finding trend
+        trend = medfilt(trend, mfa[mi])  # finding trend
     return np.subtract(ecg10s, trend)
 
 def denoiseAndNormalization(ecg10s):
     denoised_ecg = LPF(detrendonECG(ecg10s), HIGHCUT2)
     preprocessed_ecg10s = np.round(zscore(denoised_ecg), decimals=3)
 
-    return preprocessed_ecg10s # 웹출력용 / 분석용
+    return preprocessed_ecg10s  # 웹출력용 / 분석용
 
 
 def extract_continuous_groups(arr, target_value):

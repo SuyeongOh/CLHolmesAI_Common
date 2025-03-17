@@ -9,6 +9,7 @@ SEC_TO_MS = 1000
 BATCH_SIZE = 512
 FS_MITBIH = 360
 FS = 250
+FS_delineate = 100 # DY : 100 / DNN: 250
 DURATION = 10
 
 FILTERS_WIDTH = [0.2, 0.6] # unit: sec (s)

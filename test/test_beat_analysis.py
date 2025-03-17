@@ -85,7 +85,7 @@ class TestBeatAnalysis:
                     raise ValueError(f"알 수 없는 모델 이름: {model_name}")
 
                 for pid in pid_list:
-                    fs = dataModel.getPidFs()
+                    fs = dataModel.getPidFs(pid)
                     pid_idxs = np.where(np_data['pid'] == pid)[0]
                     onset, offset = pid_idxs[0], pid_idxs[-1]
                     target_data = np_data['data'][onset:offset]
