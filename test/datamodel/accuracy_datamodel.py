@@ -5,12 +5,11 @@ from dataclasses import dataclass
 class AccuracyDataModel:
     t_count: int = 0
     p_count: int = 0
-    total_count: int = 0
     tp_count: int = 0
 
     def getSense(self):
         if self.t_count != 0:
-            return self.tp_count / self.total_count
+            return self.tp_count / self.t_count
         else:
             return -1
 
