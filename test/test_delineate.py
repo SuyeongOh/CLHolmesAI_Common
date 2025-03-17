@@ -2,24 +2,29 @@ import neurokit2 as nk
 import numpy as np
 from scipy.signal import resample
 
-from config import FS, DURATION, BATCH_SIZE, SEC_TO_MS
-from ecg.ecg_delineate import ECGSegmentationArchitecture
+from config import  FS, DURATION, BATCH_SIZE, SEC_TO_MS
+#from ecg.ecg_delineate import ECGSegmentationArchitecture
+from scipy.signal import butter, lfilter, filtfilt, firwin, lfiltic, resample
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from vg_beat_detectors import FastNVG, FastWHVG
+
+from ecg.ecg_delineate import ECGSegmentation
 from test.dataloader.mit_arrhythmia_loader import MitArrhythmiaLoader
-from test.datamodel.BaseDataModel import BaseDataModel
 from test.datamodel.mitdb_model import MitdbDataModel
 from utils import ecg_utils, log_utils
 
-#TEST_MODE : DNN / NK
-TEST_MODE = 'NK'
+#TEST_MODE : DNN / NK / NVG
+TEST_MODE = 'NVG'
 
 logger = log_utils.getCustomLogger(__name__)
 
 class TestDeliniate:
-    model = ECGSegmentationArchitecture().UNet1DPlusPlus()
+    #model = ECGSegmentationArchitecture().UNet1DPlusPlus()
 
     def run(self):
         test_dataset = MitArrhythmiaLoader('delineate').load()
-        self.model.load_weights("weights/ecg_segmentation_weights.h5")  # load weights
+        ecg_segmentator = ECGSegmentation()
+        #self.model.load_weights("weights/ecg_segmentation_weights.h5")  # load weights
 
         for dataset_name in test_dataset.keys():
             logger.info(f'Target Dataset {dataset_name}')
@@ -34,6 +39,7 @@ class TestDeliniate:
                 signal_split_10s = self.create_input(ecg_signal_pid, ecg_fs)
                 #P 찾는것으로 추가 개선 예정
                 rPeak_list = self.find_rPeak(signal_split_10s)
+                segmentation_result = ecg_segmentator.run(signal_split_10s)
                 qrs_correct[pid], hr_gt_pid, hr_pred_pid = self.calculate_Accuracy(pid, rPeak_list, dataModel.getPidRpeak(pid), ecg_fs)
                 hr_gt_list.append(hr_gt_pid)
                 hr_pred_list.append(hr_pred_pid)
@@ -72,35 +78,44 @@ class TestDeliniate:
             signals, waves = nk.ecg_delineate(ecg_full, rpeaks=rpeaks, sampling_rate=FS)
             rPeak_list = rpeaks['ECG_R_Peaks']
 
-        elif TEST_MODE == 'DNN':
-            nparray_split_10s = np.stack(input_signal, axis=0)
+        if TEST_MODE == 'NVG':
+            detector = FastNVG(sampling_frequency=250)
 
-            all_ecg5s_1 = nparray_split_10s[:, :FS * DURATION // 2]
-            all_ecg5s_2 = nparray_split_10s[:, FS * DURATION // 2:]
-            all_ecg5s = np.concatenate((all_ecg5s_1, all_ecg5s_2), axis=0)
-            del all_ecg5s_1, all_ecg5s_2
+            ecg_full = np.hstack(input_signal)
 
-            segmentation_result_5s = self.model.predict(all_ecg5s, batch_size=BATCH_SIZE)  # (2N, 1250, 4)
-            segmentation_result_5s = np.argmax(segmentation_result_5s, axis=-1)  # (2N, 1250)
+            rpeaks = detector.find_peaks(ecg_full)
+            signals, waves = nk.ecg_delineate(ecg_full, rpeaks=rpeaks, sampling_rate=FS)
+            rPeak_list = rpeaks
 
-            result_1 = segmentation_result_5s[:nparray_split_10s.shape[0]]  # (N, 1250)
-            result_2 = segmentation_result_5s[nparray_split_10s.shape[0]:]  # (N, 1250)
-            del segmentation_result_5s
-
-            segmentation_result = np.concatenate((result_1, result_2), axis=1).astype(np.int8)  # (N, 2500)
-            del result_1, result_2
-
-            segmentation_result = segmentation_result.ravel()
-
-            # QRS complex encoding = 2
-            qrs_group_onset, qrs_group_offset = ecg_utils.extract_continuous_groups(segmentation_result, 2)
-
-            # 10sec -> 1dim ECG data
-            all_ecg5s = all_ecg5s.ravel()
-            rPeak_list = ecg_utils.extract_rPeak(all_ecg5s, qrs_group_onset, qrs_group_offset)
-
-            # rPeak sampling -> 250hz -> 360hz
-            rPeak_list = np.array(rPeak_list)
+        # elif TEST_MODE == 'DNN':
+        #     nparray_split_10s = np.stack(input_signal, axis=0)
+        #
+        #     all_ecg5s_1 = nparray_split_10s[:, :FS * DURATION // 2]
+        #     all_ecg5s_2 = nparray_split_10s[:, FS * DURATION // 2:]
+        #     all_ecg5s = np.concatenate((all_ecg5s_1, all_ecg5s_2), axis=0)
+        #     del all_ecg5s_1, all_ecg5s_2
+        #
+        #     segmentation_result_5s = self.model.predict(all_ecg5s, batch_size=BATCH_SIZE)  # (2N, 1250, 4)
+        #     segmentation_result_5s = np.argmax(segmentation_result_5s, axis=-1)  # (2N, 1250)
+        #
+        #     result_1 = segmentation_result_5s[:nparray_split_10s.shape[0]]  # (N, 1250)
+        #     result_2 = segmentation_result_5s[nparray_split_10s.shape[0]:]  # (N, 1250)
+        #     del segmentation_result_5s
+        #
+        #     segmentation_result = np.concatenate((result_1, result_2), axis=1).astype(np.int8)  # (N, 2500)
+        #     del result_1, result_2
+        #
+        #     segmentation_result = segmentation_result.ravel()
+        #
+        #     # QRS complex encoding = 2
+        #     qrs_group_onset, qrs_group_offset = ecg_utils.extract_continuous_groups(segmentation_result, 2)
+        #
+        #     # 10sec -> 1dim ECG data
+        #     all_ecg5s = all_ecg5s.ravel()
+        #     rPeak_list = ecg_utils.extract_rPeak(all_ecg5s, qrs_group_onset, qrs_group_offset)
+        #
+        #     # rPeak sampling -> 250hz -> 360hz
+        #     rPeak_list = np.array(rPeak_list)
         else:
             return []
 
